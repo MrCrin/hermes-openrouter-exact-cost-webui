@@ -1,0 +1,22 @@
+# OpenRouter Exact Cost sidecar — token-v1 loopback backend for the
+# hermes-openrouter-exact-cost WebUI extension.
+#
+# The WebUI mints the per-extension proxy token into its state dir when proxy
+# consent is granted; the scaffold resolves it from there. No secret lives here.
+#
+# Install: cp to ~/.config/systemd/user/ then
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now hermes-openrouter-exact-cost-sidecar
+[Unit]
+Description=OpenRouter Exact Cost sidecar (WebUI session cost reconciler, token-v1)
+After=default.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/.hermes/webui/extensions/hermes-openrouter-exact-cost/sidecar
+Environment=HERMES_WEBUI_STATE_DIR=%h/.hermes/webui
+ExecStart=/usr/bin/python3 -S -u sidecar.py
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

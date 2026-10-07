@@ -1,0 +1,68 @@
+{
+  "id": "hermes-openrouter-exact-cost",
+  "name": "OpenRouter Exact Cost",
+  "description": "Replaces the session cost shown in the WebUI with the exact figure OpenRouter billed, reconciled from OpenRouter's own records instead of local estimates.",
+  "version": "0.1.1",
+  "author": "Michael Crinnion",
+  "assets": {
+    "scripts": [
+      "assets/cost.js"
+    ],
+    "stylesheets": [
+      "assets/cost.css"
+    ]
+  },
+  "capabilities": [
+    "manifest-bundle",
+    "loopback-sidecar"
+  ],
+  "sidecar": {
+    "type": "loopback",
+    "origin": "http://127.0.0.1:17799",
+    "health_path": "/health",
+    "proxy_auth": "token-v1",
+    "runtime": {
+      "kind": "vendored",
+      "path": "sidecar"
+    }
+  },
+  "lifecycle": {
+    "webui_restart_required": false,
+    "sidecar_start_required": true,
+    "native_host_start_required": false,
+    "native_host_autostart": "none"
+  },
+  "post_install": {
+    "requires_local_app": true,
+    "local_app_label": "OpenRouter Exact Cost sidecar",
+    "summary": "Run the bundled sidecar (sidecar/sidecar.py) on 127.0.0.1:17799, then approve the sidecar proxy in Settings \u2192 Extensions. The sidecar reads the OpenRouter API key from ~/.hermes/.env and the session generation ids from ~/.hermes/logs/agent.log."
+  },
+  "screenshots": [],
+  "permissions": {
+    "webui_api": {
+      "read": [
+        "sessions",
+        "/api/sessions",
+        "/api/extensions/status",
+        "/api/extensions/hermes-openrouter-exact-cost/sidecar/api/session-cost"
+      ],
+      "write": []
+    },
+    "webui_navigation": false,
+    "dom": {
+      "owned": true,
+      "mutates_core_views": true
+    },
+    "storage": {
+      "owned": [],
+      "shared_webui_keys": []
+    },
+    "loopback_sidecar": true,
+    "native_host": false,
+    "filesystem": {
+      "arbitrary": false,
+      "serves_bundled_assets": true
+    },
+    "network_external": true
+  }
+}

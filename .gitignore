@@ -1,0 +1,12 @@
+# Sidecar runtime state — regenerated on first run, never source.
+sidecar/costs.db
+sidecar/costs.db-journal
+sidecar/costs.db-wal
+sidecar/costs.db-shm
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Manifest backups written by register_extension.py
+*.bak-openrouter

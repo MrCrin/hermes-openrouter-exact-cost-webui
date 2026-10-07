@@ -1,0 +1,21 @@
+{
+  "extensions": [
+    {
+      "id": "hermes-openrouter-exact-cost",
+      "name": "OpenRouter Exact Cost",
+      "description": "Replaces the WebUI session cost with the exact amount OpenRouter billed, reconciled from OpenRouter's own records instead of local estimates.",
+      "scripts": [
+        "assets/cost.js"
+      ],
+      "stylesheets": [
+        "assets/cost.css"
+      ],
+      "sidecar": {
+        "type": "loopback",
+        "origin": "http://127.0.0.1:17799",
+        "health_path": "/health",
+        "proxy_auth": "token-v1"
+      }
+    }
+  ]
+}

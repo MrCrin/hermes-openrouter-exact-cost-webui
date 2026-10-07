@@ -1,0 +1,40 @@
+/* OpenRouter Exact Cost — WebUI extension styles.
+ *
+ * Makes the reconciled figure visually distinguishable from Hermes' own
+ * carry-forward estimate, and styles the per-model breakdown block injected
+ * beneath the tooltip's cost line.
+ *
+ * Deliberately minimal and inheriting: this extension corrects and annotates
+ * text, it does not restyle the composer.
+ */
+.orx-exact-cost {
+  color: var(--accent-color, #7aa2f7);
+  font-style: normal;
+}
+
+.orx-breakdown {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(127, 127, 127, 0.25);
+  font-size: 0.92em;
+  line-height: 1.45;
+  opacity: 0.9;
+}
+
+.orx-bd-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  white-space: nowrap;
+}
+
+.orx-bd-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.85;
+}
+
+.orx-bd-cost {
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-color, #7aa2f7);
+}
