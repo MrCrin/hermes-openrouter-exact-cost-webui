@@ -7,8 +7,14 @@ It prices each API call from OpenRouter's own generation records, rather than
 from Hermes' local estimate.
 
 Companion project: [hermes-openrouter-exact-cost](https://github.com/MrCrin/hermes-openrouter-exact-cost)
-is the Hermes plugin that makes Hermes' internal per-call costs exact. Neither
-project requires the other.
+is the Hermes plugin that makes Hermes' internal per-call costs exact; it also
+ships a Hermes Desktop status-bar chip (`desktop/plugin.js`) that surfaces the
+focused session's figure. Neither project requires the other.
+
+The chip and this extension are two routes to the same idea and can differ: the
+chip reads the figures the plugin *recorded* in `state.db`, while this extension
+re-prices generation ids harvested from the agent log via OpenRouter's
+generation API.
 
 ## What you'll see
 
