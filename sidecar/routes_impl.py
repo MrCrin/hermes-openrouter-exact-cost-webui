@@ -26,6 +26,22 @@ answer in a local SQLite file. Consequences:
   deliberately NOT used: it returns 403 for a normal API key
   ("Only management keys can access analytics").
 
+TWO PARTS, BECAUSE ONE SOURCE CANNOT SEE EVERYTHING
+---------------------------------------------------
+Generation ids cover every call that runs the conversation loop -- the main loop
+and background review. They do NOT cover the auxiliary calls (title generation,
+compression, approvals, vision): those are logged as
+``agent.auxiliary_client: Auxiliary <task>`` with no generation id and no session
+tag, so no log-based reconstruction can see them, yet OpenRouter still bills
+them. Their cost is therefore added from Hermes' own ledger
+(``state.db.session_model_usage``) -- OpenRouter's own figure for them while the
+companion provider plugin is installed, a local estimate when it is not.
+
+The total is thus the whole OpenRouter bill for the session. ``unpriced_calls``
+and ``other_provider_calls`` keep disclosing the calls whose figure is not
+provider-sourced or not OpenRouter's at all, and ``ledger_overhead_calls`` says
+how many calls came from the ledger add-on.
+
 HONESTY RULE (why this file is fussy about completeness)
 --------------------------------------------------------
 Two different things can stop a call from being priced, and they must not be
@@ -104,6 +120,65 @@ def _api_key() -> str | None:
 
 def _db_path() -> Path:
     return Path(__file__).with_name("costs.db")
+
+
+def _state_db_path() -> Path:
+    return _hermes_home() / "state.db"
+
+
+#: Tasks whose calls DO leave an OpenRouter generation id in ``agent.log`` (they
+#: run the conversation loop), so ``/generation`` already prices them and they
+#: must not be added again from the ledger.
+_GEN_PRICED_TASKS = ("", "background_review")
+
+
+def _short_model(name) -> str:
+    """Merge the dated name a generation reports with the ledger's undated one."""
+    raw = str(name or "")
+    base = re.sub(r"-\d{8}$", "", raw.split("/")[-1]) or "?"
+    vendor = raw.split("/")[0] if "/" in raw else ""
+    return f"{vendor}/{base}" if vendor else base
+
+
+def _ledger_overhead(session_id: str) -> dict:
+    """OpenRouter spend the log harvest cannot see, read from the ledger.
+
+    Auxiliary calls (title generation, compression, approvals, vision) are logged
+    as ``agent.auxiliary_client: Auxiliary <task>`` -- no generation id and no
+    ``[session]`` tag -- so ``/generation`` cannot price them and they are absent
+    from every log-based reconstruction. Their ledger rows carry OpenRouter's own
+    figure while the provider plugin is installed, and a local estimate when it is
+    not; either way the spend is real and belongs in the session total.
+
+    ``background_review`` is excluded: it runs the conversation loop, so its calls
+    already carry generation ids and are priced above.
+    """
+    out = {"calls": 0, "cost_usd": 0.0, "by_model": {}}
+    db = _state_db_path()
+    if not db.is_file():
+        return out
+    placeholders = ",".join("?" * len(_GEN_PRICED_TASKS))
+    try:
+        con = sqlite3.connect(f"file:{db}?mode=ro", uri=True, timeout=5)
+        con.row_factory = sqlite3.Row
+        rows = con.execute(
+            "SELECT model, api_call_count, estimated_cost_usd FROM session_model_usage"
+            " WHERE session_id = ? AND LOWER(billing_provider) = 'openrouter'"
+            f"   AND task NOT IN ({placeholders})",
+            (session_id, *_GEN_PRICED_TASKS),
+        ).fetchall()
+        con.close()
+    except sqlite3.Error:
+        return out
+    for r in rows:
+        calls = int(r["api_call_count"] or 0)
+        cost = float(r["estimated_cost_usd"] or 0.0)
+        out["calls"] += calls
+        out["cost_usd"] += cost
+        entry = out["by_model"].setdefault(_short_model(r["model"]), {"calls": 0, "cost_usd": 0.0})
+        entry["calls"] += calls
+        entry["cost_usd"] = round(entry["cost_usd"] + cost, 6)
+    return out
 
 
 def _connect() -> sqlite3.Connection:
@@ -226,24 +301,34 @@ def _reconcile(session_id: str) -> dict:
             known[gen_id] = (priced["cost_usd"], priced["model"])
         con.commit()
 
+        # Per-model roll-up of the generation-priced set (exact, OpenRouter's own
+        # figures), then the ledger add-on for the calls no generation id covers.
         by_model: dict[str, dict] = {}
         total = 0.0
         for cost, model in known.values():
             total += cost or 0.0
-            entry = by_model.setdefault(model or "?", {"calls": 0, "cost_usd": 0.0})
+            entry = by_model.setdefault(_short_model(model), {"calls": 0, "cost_usd": 0.0})
             entry["calls"] += 1
             entry["cost_usd"] = round(entry["cost_usd"] + (cost or 0.0), 6)
+
+        overhead = _ledger_overhead(session_id)
+        for name, row in overhead["by_model"].items():
+            entry = by_model.setdefault(name, {"calls": 0, "cost_usd": 0.0})
+            entry["calls"] += row["calls"]
+            entry["cost_usd"] = round(entry["cost_usd"] + row["cost_usd"], 6)
+        total += overhead["cost_usd"]
 
         return {
             "session": session_id,
             "total_usd": round(total, 6),
             "generations": len(known),
+            "ledger_overhead_calls": overhead["calls"],
             "other_provider_calls": other_provider,
             "unpriced_calls": unpriced,
             "pending_calls": pending,
-            "has_data": len(known) > 0,
+            "has_data": bool(known) or overhead["calls"] > 0,
             "complete": (other_provider + unpriced) == 0,
-            "source": "openrouter_generation_api",
+            "source": "openrouter_generation_api+hermes_state_db",
             "by_model": by_model,
         }
     finally:

@@ -27,6 +27,18 @@ The tooltip's cost line is replaced, not duplicated.
 | `OpenRouter: $4.37 (+3 unpriced)` | 3 OpenRouter calls have no usable billing record. The total is a floor, not a total. |
 | *(unchanged)* | The session has no OpenRouter calls, so nothing is shown. |
 
+**How the number is built — two parts, because one source cannot see everything.**
+Generation ids (harvested from `agent.log`) cover every call that runs the
+conversation loop: the main loop and background review. They do **not** cover the
+auxiliary calls — chat titles, compression, approvals, vision — which are logged
+as `agent.auxiliary_client: Auxiliary <task>` with no generation id and no
+session tag, so no log-based reconstruction can see them, yet OpenRouter still
+bills them. Their cost is added from Hermes' own ledger
+(`state.db.session_model_usage`), where the companion
+[provider plugin](https://github.com/MrCrin/hermes-openrouter-exact-cost) records
+OpenRouter's own figure for them. The total is therefore the whole OpenRouter
+bill for the session, not a floor.
+
 A per-model breakdown follows the cost line, sorted by spend:
 
 ```
@@ -101,6 +113,10 @@ Sidecar log: `journalctl --user -u hermes-openrouter-exact-cost-sidecar -n 50`
 - The total excludes non-OpenRouter spend, including when it is disclosed.
 - Generation ids are read from Hermes' agent log. A call whose log line is
   rotated away before the sidecar reads it cannot be recovered.
+- The auxiliary calls (titles, compression, approvals, vision) are added from
+  Hermes' `state.db` ledger, because they leave no generation id. Without the
+  companion provider plugin those rows hold a local estimate rather than
+  OpenRouter's figure — real spend either way, but not (yet) exact.
 - A call OpenRouter has just billed may not be queryable for a short period.
   Such calls are counted as pending and resolve themselves.
 - If the sidecar is not running, the tooltip reverts to the WebUI's own figure
